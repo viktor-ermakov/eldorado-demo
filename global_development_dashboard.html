@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Global Development Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  :root{
+    --bg:#0a0a0a; --card:#121212; --card2:#171717; --border:#262626;
+    --text:#f2f2f2; --muted:#8d8d8d; --accent:#e8261a; --accent2:#ff8a4c;
+    --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+    --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans)}
+  .wrap{max-width:1380px;margin:0 auto;padding:28px 20px 40px}
+
+  /* Header */
+  header{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;
+         padding-bottom:18px;border-bottom:2px solid var(--accent);margin-bottom:22px;flex-wrap:wrap}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--accent);text-transform:uppercase}
+  h1{font-family:var(--mono);font-size:30px;margin:8px 0 6px;font-weight:700;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:14px;margin:0}
+  .badge{font-family:var(--mono);font-size:11px;padding:8px 12px;border:1px solid #5a1612;background:#1c0b0a;
+         border-radius:6px;color:#ffd9d6;white-space:nowrap}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#37d67a;margin-right:8px;
+       box-shadow:0 0 8px #37d67a}
+
+  /* Filters */
+  .filters{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+  .pills{display:flex;gap:4px;flex-wrap:wrap;padding:5px;background:var(--card);border:1px solid var(--border);border-radius:10px}
+  .pill,.btn,select{font-family:var(--mono);font-size:12px;color:#b5b5b5;background:transparent;border:0;
+         padding:8px 14px;border-radius:7px;cursor:pointer;transition:.15s}
+  .pill:hover{color:#fff;background:#1d1d1d}
+  .pill.active{background:var(--accent);color:#fff;font-weight:600}
+  select{background:var(--card);border:1px solid var(--border);padding:9px 12px}
+  select:focus,.btn:focus-visible,.pill:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+  .btn{border:1px solid var(--border);background:var(--card)}
+  .btn:hover{color:#fff;border-color:#444}
+  .spacer{flex:1}
+
+  /* Layout */
+  .grid{display:grid;gap:16px;margin-bottom:16px}
+  .kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .row1{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr)}
+  .row3{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
+  @media(max-width:1000px){
+    .row1,.row3{grid-template-columns:minmax(0,1fr)} .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+    h1{font-size:24px}
+  }
+  @media(max-width:520px){.kpis{grid-template-columns:minmax(0,1fr)}}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 18px 12px;min-width:0}
+  .kpi{position:relative;padding-left:22px}
+  .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:12px 0 0 12px}
+  .kpi .label{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
+  .kpi .value{font-family:var(--mono);font-size:28px;font-weight:700;margin:10px 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .kpi .note{font-size:12.5px;color:var(--muted)}
+
+  .card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px}
+  .card h2{font-family:var(--mono);font-size:14px;margin:0 0 4px;font-weight:700}
+  .card .desc{font-size:12px;color:var(--muted);margin:0 0 6px}
+  .year{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--accent2);line-height:1}
+  .chart{width:100%}
+  .empty{display:flex;align-items:center;justify-content:center;height:100%;min-height:200px;color:var(--muted);
+         font-family:var(--mono);font-size:13px;text-align:center;padding:20px}
+
+  /* Compare controls */
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 10px}
+  .seg{display:flex;gap:2px;padding:3px;background:var(--card2);border:1px solid var(--border);border-radius:8px}
+  .seg .pill{padding:6px 10px;font-size:11.5px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+  .chip{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11.5px;padding:5px 6px 5px 10px;
+        border:1px solid var(--border);border-radius:999px;background:var(--card2)}
+  .chip i{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .chip button{background:none;border:0;color:#999;cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
+  .chip button:hover{color:#fff}
+  .select-sm{padding:7px 10px;font-size:11.5px}
+
+  footer{margin-top:22px;color:var(--muted);font-size:12px;display:flex;gap:14px;flex-wrap:wrap;justify-content:space-between}
+  footer a{color:var(--accent2);cursor:pointer;text-decoration:underline}
+
+  /* Loading / error overlay */
+  #status{position:fixed;inset:0;background:rgba(10,10,10,.96);display:flex;flex-direction:column;align-items:center;
+          justify-content:center;gap:14px;z-index:50;font-family:var(--mono);text-align:center;padding:24px}
+  #status.hidden{display:none}
+  .spinner{width:38px;height:38px;border:3px solid #2a2a2a;border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #status .msg{font-size:13px;color:#cfcfcf;max-width:520px;line-height:1.6}
+  #status .err{color:#ff8a80}
+</style>
+</head>
+<body>
+<div id="status">
+  <div class="spinner" id="spinner"></div>
+  <div class="msg" id="statusMsg">Fetching data from api.worldbank.org…</div>
+  <button class="btn" id="retryBtn" style="display:none">Retry</button>
+</div>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">Global development · World Bank open data</div>
+      <h1>Wealth, Health &amp; Population, 1990 → Today</h1>
+      <p class="sub">How income, life expectancy and population evolved across ~200 countries.</p>
+    </div>
+    <div class="badge"><span class="dot"></span>Live data · api.worldbank.org</div>
+  </header>
+
+  <div class="filters">
+    <div class="pills" id="regionPills" role="group" aria-label="Region filter"></div>
+    <select id="incomeSel" aria-label="Income group filter"></select>
+    <span class="spacer"></span>
+    <button class="btn" id="clearBtn">Clear filters</button>
+  </div>
+
+  <div class="grid kpis" id="kpis"></div>
+
+  <div class="grid row1">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Wealth vs. health</h2>
+          <p class="desc">Each bubble is a country · size = population · colour = region · press ▶ to animate</p>
+        </div>
+        <div class="year" id="bubbleYear"></div>
+      </div>
+      <div class="chart" id="bubble" style="height:600px"></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><div>
+        <h2>Biggest improvers</h2>
+        <p class="desc" id="improversDesc">Top 10 gains in life expectancy</p>
+      </div></div>
+      <div class="chart" id="improvers" style="height:600px"></div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Life expectancy around the world</h2>
+          <p class="desc">Animated choropleth · hover a country for details</p>
+        </div>
+        <div class="year" id="mapYear"></div>
+      </div>
+      <div class="chart" id="map" style="height:560px"></div>
+    </section>
+  </div>
+
+  <div class="grid row3">
+    <section class="card">
+      <div class="card-head"><div>
+        <h2>Build your own comparison</h2>
+        <p class="desc">Pick up to 8 countries and an indicator (independent of the filters above)</p>
+      </div></div>
+      <div class="controls">
+        <div class="seg" id="metricSeg"></div>
+        <button class="btn" id="logBtn" style="padding:7px 12px;font-size:11.5px">Log scale: off</button>
+        <select id="addSel" class="select-sm" aria-label="Add country"></select>
+      </div>
+      <div class="chips" id="chips"></div>
+      <div class="chart" id="compare" style="height:480px"></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><div>
+        <h2>Is the gap closing?</h2>
+        <p class="desc">Median life expectancy by income group</p>
+      </div></div>
+      <div class="chart" id="gap" style="height:600px"></div>
+    </section>
+  </div>
+
+  <footer>
+    <span>Source: World Bank Open Data (CC BY 4.0) · Indicators SP.DYN.LE00.IN, NY.GDP.PCAP.CD, SP.POP.TOTL</span>
+    <span id="fetchedAt"></span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   1. CONFIG
+   ===================================================================== */
+const API = "https://api.worldbank.org/v2";
+const START = 1990, END = 2022;
+const INDICATORS = { life: "SP.DYN.LE00.IN", gdp: "NY.GDP.PCAP.CD", pop: "SP.POP.TOTL" };
+const LABELS = { life: "Life expectancy (years)", gdp: "GDP per capita (US$)", pop: "Population" };
+const SHORT  = { life: "Life expectancy", gdp: "GDP per capita", pop: "Population" };
+const INCOME_ORDER = ["Low income", "Lower middle income", "Upper middle income", "High income"];
+const INCOME_COLORS = { "Low income": "#ff3b30", "Lower middle income": "#ff8a4c",
+                        "Upper middle income": "#ffd166", "High income": "#b8bcc6" };
+const REGION_PALETTE = ["#ff3b30", "#ff8a4c", "#ffd166", "#7cfc9a", "#4cc9f0", "#b388ff", "#f06292", "#b8bcc6"];
+const COMPARE_PALETTE = ["#ff3b30", "#4cc9f0", "#ffd166", "#7cfc9a", "#b388ff", "#ff8a4c", "#f06292", "#b8bcc6"];
+const CACHE_KEY = "wb_dashboard_v1", CACHE_TTL = 24 * 3600 * 1000;
+
+const COLORSCALE = [[0, "#2b0a0a"], [0.4, "#b3190f"], [0.75, "#ff8a4c"], [1, "#fff1c9"]];
+const FONT = { family: "Inter, system-ui, sans-serif", color: "#d9d9d9", size: 12 };
+const AXIS = { gridcolor: "#222", zerolinecolor: "#333", linecolor: "#333", tickfont: { color: "#9a9a9a" },
+               title: { font: { color: "#9a9a9a", size: 12 } } };
+const PLOT_CONFIG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"] };
+const baseLayout = (extra = {}) => ({
+  paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: FONT,
+  hoverlabel: { bgcolor: "#111", bordercolor: "#444", font: { color: "#f2f2f2", family: FONT.family } },
+  ...extra
+});
+
+/* =====================================================================
+   2. STATE
+   ===================================================================== */
+let DATA = [];            // tidy records: {iso,country,region,income,year,life,gdp,pop}
+let BY_ISO = new Map();   // iso -> records sorted by year
+let COUNTRIES = [];       // [{iso,country,region,income}]
+let REGIONS = [], REGION_COLOR = {};
+let latestYear = END;
+const state = { region: "All", income: "All", metric: "gdp", log: false,
+                compare: ["BRA", "USA", "CHN", "IND", "DEU"], compareColor: {} };
+
+const $ = id => document.getElementById(id);
+
+/* =====================================================================
+   3. DATA LAYER  (Extract → Transform)
+   ===================================================================== */
+async function wbFetch(path, params = {}) {
+  const rows = [];
+  let page = 1, pages = 1;
+  do {
+    const qs = new URLSearchParams({ format: "json", per_page: "20000", ...params, page: String(page) });
+    const res = await fetch(`${API}/${path}?${qs}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status} while requesting ${path}`);
+    const payload = await res.json();
+    if (!Array.isArray(payload) || payload.length < 2 || !payload[1])
+      throw new Error(`The API returned no data for ${path}`);
+    pages = payload[0].pages;
+    rows.push(...payload[1]);
+    page++;
+  } while (page <= pages);
+  return rows;
+}
+
+async function loadFromApi() {
+  const keys = Object.keys(INDICATORS);
+  const [countryRows, ...indRows] = await Promise.all([
+    wbFetch("country", { per_page: "400" }),
+    ...keys.map(k => wbFetch(`country/all/indicator/${INDICATORS[k]}`, { date: `${START}:${END}` }))
+  ]);
+
+  const meta = new Map();
+  countryRows.forEach(r => {
+    if (r.region.value !== "Aggregates")                       // drop "World", "Euro area", ...
+      meta.set(r.id, { iso: r.id, country: r.name, region: r.region.value, income: r.incomeLevel.value });
+  });
+
+  const merged = new Map();
+  keys.forEach((k, i) => indRows[i].forEach(r => {
+    const iso = r.countryiso3code;
+    if (!meta.has(iso) || r.value == null) return;
+    const year = +r.date, key = iso + "|" + year;
+    let rec = merged.get(key);
+    if (!rec) { rec = { ...meta.get(iso), year, life: null, gdp: null, pop: null }; merged.set(key, rec); }
+    rec[k] = r.value;
+  }));
+  return [...merged.values()];
+}
+
+async function getData() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+    if (c && Date.now() - c.t < CACHE_TTL) return { data: c.data, t: c.t, cached: true };
+  } catch (e) { /* ignore */ }
+  const data = await loadFromApi();
+  const t = Date.now();
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t, data })); } catch (e) { /* quota / private mode */ }
+  return { data, t, cached: false };
+}
+
+function indexData(data) {
+  DATA = data;
+  BY_ISO = new Map();
+  DATA.forEach(d => { if (!BY_ISO.has(d.iso)) BY_ISO.set(d.iso, []); BY_ISO.get(d.iso).push(d); });
+  BY_ISO.forEach(arr => arr.sort((a, b) => a.year - b.year));
+  COUNTRIES = [...BY_ISO.values()].map(a => ({ iso: a[0].iso, country: a[0].country, region: a[0].region, income: a[0].income }))
+                                  .sort((a, b) => a.country.localeCompare(b.country));
+  REGIONS = [...new Set(COUNTRIES.map(c => c.region))].sort();
+  REGIONS.forEach((r, i) => REGION_COLOR[r] = REGION_PALETTE[i % REGION_PALETTE.length]);
+  const counts = new Map();
+  DATA.forEach(d => { if (d.life != null) counts.set(d.year, (counts.get(d.year) || 0) + 1); });
+  const good = [...counts].filter(([, c]) => c >= 100).map(([y]) => y);
+  latestYear = good.length ? Math.max(...good) : END;
+  state.compare = state.compare.filter(i => BY_ISO.has(i));
+}
+
+/* =====================================================================
+   4. HELPERS
+   ===================================================================== */
+const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1;
+                      return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const fmtInt = n => Math.round(n).toLocaleString("en-US");
+const fmtUsd = n => "$" + fmtInt(n);
+const fmtPop = n => n >= 1e9 ? (n / 1e9).toFixed(2) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : fmtInt(n);
+
+function filtered() {
+  return DATA.filter(d => (state.region === "All" || d.region === state.region) &&
+                          (state.income === "All" || d.income === state.income));
+}
+
+function computeGains(rows) {
+  const m = new Map();
+  rows.forEach(d => {
+    if (d.life == null || (d.year !== START && d.year !== latestYear)) return;
+    const o = m.get(d.iso) || { country: d.country };
+    o[d.year] = d.life; m.set(d.iso, o);
+  });
+  return [...m.values()].filter(o => o[START] != null && o[latestYear] != null)
+    .map(o => ({ country: o.country, from: o[START], to: o[latestYear], gain: o[latestYear] - o[START] }))
+    .sort((a, b) => b.gain - a.gain);
+}
+
+function clearChart(el) { if (window.Plotly) Plotly.purge(el); el.innerHTML = ""; }
+function showEmpty(el, msg) { clearChart(el); el.innerHTML = `<div class="empty">${msg}</div>`; }
+
+/* Slider + play-button pair shared by the two animated charts */
+function animationControls(years) {
+  const first = years[0], last = years[years.length - 1];
+  const frameOpts = { mode: "immediate", frame: { duration: 0, redraw: false }, transition: { duration: 0 } };
+  return {
+    updatemenus: [{
+      type: "buttons", direction: "left", x: 0, y: 0, xanchor: "left", yanchor: "top", pad: { t: 48, r: 10 },
+      showactive: false, bgcolor: "#1c1c1c", bordercolor: "#333", font: { color: "#f2f2f2", size: 12 },
+      buttons: [
+        { label: "▶ Play", method: "animate",
+          args: [null, { fromcurrent: true, frame: { duration: 380, redraw: false },
+                         transition: { duration: 300, easing: "linear" } }] },
+        { label: "❚❚ Pause", method: "animate", args: [[null], frameOpts] }
+      ]
+    }],
+    sliders: [{
+      active: 0, x: 0.2, len: 0.8, y: 0, yanchor: "top", pad: { t: 50, b: 8 },
+      currentvalue: { visible: false }, bgcolor: "#222", activebgcolor: "#e8261a", bordercolor: "#333",
+      tickcolor: "#444", font: { color: "#8d8d8d", size: 11 }, minorticklen: 0,
+      steps: years.map(y => ({
+        label: (y % 5 === 0 || y === first || y === last) ? String(y) : "",
+        method: "animate", args: [[String(y)], frameOpts]
+      }))
+    }]
+  };
+}
+
+function bindYearBadge(el, badge, firstYear) {
+  badge.textContent = firstYear;
+  el.on("plotly_animatingframe", e => { if (e && e.frame) badge.textContent = e.frame.name; });
+}
+
+/* =====================================================================
+   5. RENDERERS
+   ===================================================================== */
+function renderKPIs() {
+  const rows = filtered();
+  const cur = rows.filter(d => d.year === latestYear);
+  const withLife = cur.filter(d => d.life != null);
+  const wp = withLife.filter(d => d.pop != null);
+  const popSum = wp.reduce((s, d) => s + d.pop, 0);
+  const avgLife = popSum ? wp.reduce((s, d) => s + d.life * d.pop, 0) / popSum : null;
+  const medGdp = median(cur.filter(d => d.gdp != null).map(d => d.gdp));
+  const best = computeGains(rows)[0];
+
+  const card = (label, value, note) =>
+    `<div class="card kpi"><div class="label">${label}</div><div class="value" title="${value}">${value}</div><div class="note">${note}</div></div>`;
+  $("kpis").innerHTML =
+    card("Countries in view", withLife.length || "–", `with data in ${latestYear}`) +
+    card("Avg life expectancy", avgLife ? avgLife.toFixed(1) + " yrs" : "–", `population-weighted · ${latestYear}`) +
+    card("Median GDP per capita", medGdp ? fmtUsd(medGdp) : "–", `current US$ · ${latestYear}`) +
+    card("Biggest improver", best ? best.country : "–", best ? `+${best.gain.toFixed(1)} years since ${START}` : "not enough data");
+}
+
+function renderBubble() {
+  const el = $("bubble");
+  const rows = filtered().filter(d => d.life != null && d.gdp != null && d.gdp > 0 && d.pop != null);
+  if (!rows.length) { showEmpty(el, "No data for the current filters."); $("bubbleYear").textContent = ""; return; }
+  clearChart(el);
+
+  const regions = [...new Set(rows.map(d => d.region))].sort();
+  const years = [...new Set(rows.map(d => d.year))].sort((a, b) => a - b);
+  const maxPop = rows.reduce((m, d) => Math.max(m, d.pop), 0);
+  const idx = new Map();
+  rows.forEach(d => { const k = d.region + "|" + d.year; if (!idx.has(k)) idx.set(k, []); idx.get(k).push(d); });
+  const slice = (region, year) => {
+    const r = idx.get(region + "|" + year) || [];
+    return { x: r.map(d => d.gdp), y: r.map(d => d.life), text: r.map(d => d.country),
+             customdata: r.map(d => d.pop), marker: { size: r.map(d => d.pop) } };
+  };
+
+  const data = regions.map(region => {
+    const s = slice(region, years[0]);
+    return { type: "scatter", mode: "markers", name: region, x: s.x, y: s.y, text: s.text, customdata: s.customdata,
+      marker: { size: s.marker.size, sizemode: "area", sizeref: 2 * maxPop / (56 ** 2), sizemin: 4,
+                color: REGION_COLOR[region], opacity: 0.78, line: { width: 0.8, color: "#000" } },
+      hovertemplate: "<b>%{text}</b><br>GDP per capita: $%{x:,.0f}<br>Life expectancy: %{y:.1f} yrs" +
+                     "<br>Population: %{customdata:,.0f}<extra>%{fullData.name}</extra>" };
+  });
+  const frames = years.map(y => ({ name: String(y), data: regions.map(r => slice(r, y)) }));
+
+  const layout = baseLayout({
+    height: 600, margin: { l: 58, r: 16, t: 50, b: 140 },
+    xaxis: { ...AXIS, type: "log", range: [Math.log10(250), Math.log10(150000)],
+             title: { text: "GDP per capita (US$, log scale)", font: AXIS.title.font } },
+    yaxis: { ...AXIS, range: [25, 90], title: { text: "Life expectancy (years)", font: AXIS.title.font } },
+    legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", font: { size: 11 } },
+    ...animationControls(years)
+  });
+  Plotly.newPlot(el, { data, layout, frames, config: PLOT_CONFIG }).then(() => bindYearBadge(el, $("bubbleYear"), years[0]));
+}
+
+function renderMap() {
+  const el = $("map");
+  const rows = filtered().filter(d => d.life != null);
+  if (!rows.length) { showEmpty(el, "No data for the current filters."); $("mapYear").textContent = ""; return; }
+  clearChart(el);
+
+  const years = [...new Set(rows.map(d => d.year))].sort((a, b) => a - b);
+  const idx = new Map();
+  rows.forEach(d => { if (!idx.has(d.year)) idx.set(d.year, []); idx.get(d.year).push(d); });
+  const slice = y => { const r = idx.get(y) || [];
+    return { locations: r.map(d => d.iso), z: r.map(d => d.life), text: r.map(d => d.country) }; };
+
+  const s0 = slice(years[0]);
+  const data = [{ type: "choropleth", locationmode: "ISO-3", ...s0, zmin: 40, zmax: 85, colorscale: COLORSCALE,
+    marker: { line: { color: "#000", width: 0.4 } },
+    colorbar: { title: { text: "years", font: { color: "#9a9a9a" } }, thickness: 12, len: 0.7,
+                tickfont: { color: "#9a9a9a" }, outlinewidth: 0 },
+    hovertemplate: "<b>%{text}</b><br>%{z:.1f} years<extra></extra>" }];
+  const frames = years.map(y => ({ name: String(y), data: [slice(y)] }));
+
+  const geo = { bgcolor: "rgba(0,0,0,0)", showframe: false, showcoastlines: false, showland: true, landcolor: "#161616",
+                showcountries: true, countrycolor: "#2a2a2a", showocean: false, showlakes: false,
+                projection: { type: "natural earth" } };
+  if (state.region !== "All") geo.fitbounds = "locations";
+
+  const layout = baseLayout({ height: 560, margin: { l: 0, r: 0, t: 10, b: 90 }, geo, ...animationControls(years) });
+  layout.updatemenus[0].pad = { t: 10, r: 10 };
+  layout.sliders[0].pad = { t: 12, b: 8 };
+  Plotly.newPlot(el, { data, layout, frames, config: PLOT_CONFIG }).then(() => bindYearBadge(el, $("mapYear"), years[0]));
+}
+
+function renderImprovers() {
+  const el = $("improvers");
+  $("improversDesc").textContent = `Top 10 life-expectancy gains, ${START} → ${latestYear}`;
+  const top = computeGains(filtered()).slice(0, 10);
+  if (!top.length) { showEmpty(el, "Not enough data for the current filters."); return; }
+  clearChart(el);
+  const maxGain = top[0].gain;
+  const data = [{ type: "bar", orientation: "h", y: top.map(t => t.country), x: top.map(t => t.gain),
+    text: top.map(t => "+" + t.gain.toFixed(1)), textposition: "outside", cliponaxis: false,
+    textfont: { color: "#f2f2f2", family: "JetBrains Mono, monospace", size: 11 },
+    customdata: top.map(t => [t.from, t.to]),
+    marker: { color: top.map(t => t.gain), colorscale: COLORSCALE, cmin: 0, cmax: maxGain * 1.15, line: { width: 0 } },
+    hovertemplate: "<b>%{y}</b><br>%{customdata[0]:.1f} → %{customdata[1]:.1f} years<br>Gain: +%{x:.1f}<extra></extra>" }];
+  const layout = baseLayout({ height: 600, margin: { l: 10, r: 40, t: 10, b: 48 }, bargap: 0.28,
+    xaxis: { ...AXIS, range: [0, maxGain * 1.2], title: { text: "Years gained", font: AXIS.title.font } },
+    yaxis: { ...AXIS, autorange: "reversed", automargin: true, gridcolor: "rgba(0,0,0,0)", tickfont: { color: "#e6e6e6", size: 11 } } });
+  Plotly.newPlot(el, { data, layout, config: PLOT_CONFIG });
+}
+
+function renderGap() {
+  const el = $("gap");
+  const rows = filtered().filter(d => d.life != null && INCOME_ORDER.includes(d.income));
+  if (!rows.length) { showEmpty(el, "No data for the current filters."); return; }
+  clearChart(el);
+
+  const years = [...new Set(rows.map(d => d.year))].sort((a, b) => a - b);
+  const series = {};   // income -> {year -> [values]}
+  rows.forEach(d => { ((series[d.income] ||= {})[d.year] ||= []).push(d.life); });
+
+  const data = [], lastVals = {};
+  INCOME_ORDER.filter(g => series[g]).forEach(g => {
+    const ys = years.filter(y => series[g][y]);
+    const vals = ys.map(y => median(series[g][y]));
+    lastVals[g] = { x: ys[ys.length - 1], y: vals[vals.length - 1] };
+    data.push({ type: "scatter", mode: "lines", name: g, x: ys, y: vals,
+      line: { color: INCOME_COLORS[g], width: 3, shape: "spline", smoothing: 0.6 },
+      hovertemplate: "%{y:.1f} yrs<extra>" + g + "</extra>" });
+  });
+
+  const annotations = [];
+  if (lastVals["High income"] && lastVals["Low income"]) {
+    const hi = lastVals["High income"], lo = lastVals["Low income"];
+    annotations.push({ x: hi.x, y: (hi.y + lo.y) / 2, xanchor: "right", showarrow: false,
+      text: `Gap: <b>${(hi.y - lo.y).toFixed(1)} years</b>`, font: { color: "#f2f2f2", size: 13 },
+      bgcolor: "rgba(0,0,0,0.7)", bordercolor: "#555", borderpad: 6 });
+  }
+  const layout = baseLayout({ height: 600, margin: { l: 56, r: 16, t: 50, b: 48 }, hovermode: "x unified", annotations,
+    xaxis: { ...AXIS, title: { text: "Year", font: AXIS.title.font } },
+    yaxis: { ...AXIS, title: { text: "Median life expectancy (years)", font: AXIS.title.font } },
+    legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", font: { size: 11 } } });
+  Plotly.newPlot(el, { data, layout, config: PLOT_CONFIG });
+}
+
+function renderCompare() {
+  const el = $("compare");
+  const m = state.metric;
+  if (!state.compare.length) { showEmpty(el, "Add a country to start comparing."); return; }
+  clearChart(el);
+  const data = state.compare.map(iso => {
+    const recs = (BY_ISO.get(iso) || []).filter(d => d[m] != null && (!state.log || d[m] > 0));
+    const name = recs.length ? recs[0].country : iso;
+    return { type: "scatter", mode: "lines+markers", name, x: recs.map(d => d.year), y: recs.map(d => d[m]),
+      line: { color: state.compareColor[iso], width: 2.5 }, marker: { size: 5 },
+      hovertemplate: (m === "life" ? "%{y:.1f}" : "%{y:,.0f}") + "<extra>" + name + "</extra>" };
+  });
+  const layout = baseLayout({ height: 480, margin: { l: 70, r: 16, t: 40, b: 48 }, hovermode: "x unified",
+    xaxis: { ...AXIS, title: { text: "Year", font: AXIS.title.font } },
+    yaxis: { ...AXIS, type: state.log ? "log" : "linear", title: { text: LABELS[m], font: AXIS.title.font } },
+    legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", font: { size: 11 } } });
+  Plotly.newPlot(el, { data, layout, config: PLOT_CONFIG });
+}
+
+/* ---------- compare controls ---------- */
+function assignColor(iso) {
+  const used = new Set(Object.entries(state.compareColor).filter(([k]) => state.compare.includes(k)).map(([, c]) => c));
+  state.compareColor[iso] = COMPARE_PALETTE.find(c => !used.has(c)) || COMPARE_PALETTE[0];
+}
+
+function renderCompareControls() {
+  $("metricSeg").innerHTML = Object.keys(LABELS).map(k =>
+    `<button class="pill ${state.metric === k ? "active" : ""}" data-metric="${k}">${SHORT[k]}</button>`).join("");
+  $("logBtn").textContent = `Log scale: ${state.log ? "on" : "off"}`;
+
+  const avail = COUNTRIES.filter(c => !state.compare.includes(c.iso));
+  const full = state.compare.length >= 8;
+  $("addSel").disabled = full;
+  $("addSel").innerHTML = `<option value="">${full ? "Max 8 countries" : "+ Add country…"}</option>` +
+    avail.map(c => `<option value="${c.iso}">${c.country}</option>`).join("");
+
+  $("chips").innerHTML = state.compare.map(iso => {
+    const c = COUNTRIES.find(x => x.iso === iso);
+    return `<span class="chip"><i style="background:${state.compareColor[iso]}"></i>${c ? c.country : iso}
+            <button data-remove="${iso}" aria-label="Remove ${c ? c.country : iso}">×</button></span>`;
+  }).join("");
+}
+
+/* ---------- global filters ---------- */
+function renderFilters() {
+  const opts = ["All", ...REGIONS];
+  $("regionPills").innerHTML = opts.map(r =>
+    `<button class="pill ${state.region === r ? "active" : ""}" data-region="${r}">${r === "All" ? "All regions" : r}</button>`).join("");
+  const groups = INCOME_ORDER.filter(g => COUNTRIES.some(c => c.income === g));
+  $("incomeSel").innerHTML = `<option value="All">All income groups</option>` +
+    groups.map(g => `<option value="${g}" ${state.income === g ? "selected" : ""}>${g}</option>`).join("");
+}
+
+function renderFiltered() { renderKPIs(); renderBubble(); renderMap(); renderImprovers(); renderGap(); }
+
+/* =====================================================================
+   6. EVENTS
+   ===================================================================== */
+function bindEvents() {
+  $("regionPills").addEventListener("click", e => {
+    const b = e.target.closest("[data-region]"); if (!b) return;
+    state.region = b.dataset.region; renderFilters(); renderFiltered();
+  });
+  $("incomeSel").addEventListener("change", e => { state.income = e.target.value; renderFiltered(); });
+  $("clearBtn").addEventListener("click", () => { state.region = "All"; state.income = "All"; renderFilters(); renderFiltered(); });
+
+  $("metricSeg").addEventListener("click", e => {
+    const b = e.target.closest("[data-metric]"); if (!b) return;
+    state.metric = b.dataset.metric; renderCompareControls(); renderCompare();
+  });
+  $("logBtn").addEventListener("click", () => { state.log = !state.log; renderCompareControls(); renderCompare(); });
+  $("addSel").addEventListener("change", e => {
+    const iso = e.target.value; if (!iso || state.compare.length >= 8) return;
+    state.compare.push(iso); assignColor(iso); renderCompareControls(); renderCompare();
+  });
+  $("chips").addEventListener("click", e => {
+    const b = e.target.closest("[data-remove]"); if (!b) return;
+    state.compare = state.compare.filter(i => i !== b.dataset.remove); renderCompareControls(); renderCompare();
+  });
+  $("retryBtn").addEventListener("click", boot);
+}
+
+/* =====================================================================
+   7. BOOT
+   ===================================================================== */
+function setStatus(msg, { error = false, loading = true } = {}) {
+  $("status").classList.remove("hidden");
+  $("statusMsg").innerHTML = `<span class="${error ? "err" : ""}">${msg}</span>`;
+  $("spinner").style.display = loading ? "block" : "none";
+  $("retryBtn").style.display = error ? "inline-block" : "none";
+}
+
+let eventsBound = false;
+async function boot() {
+  if (!window.Plotly) {
+    setStatus("Plotly.js could not be loaded. Check your internet connection and reload the page.", { error: true, loading: false });
+    return;
+  }
+  setStatus("Fetching data from api.worldbank.org…");
+  try {
+    const { data, t, cached } = await getData();
+    indexData(data);
+    state.compare.forEach(assignColor);
+    renderFilters(); renderCompareControls(); renderFiltered(); renderCompare();
+    if (!eventsBound) { bindEvents(); eventsBound = true; }
+    $("fetchedAt").innerHTML = `${cached ? "Loaded from local cache" : "Fetched live"} · ${new Date(t).toLocaleString()} · <a id="refresh">Refresh data</a>`;
+    $("refresh").addEventListener("click", () => { try { localStorage.removeItem(CACHE_KEY); } catch (e) {} boot(); });
+    $("status").classList.add("hidden");
+  } catch (err) {
+    console.error(err);
+    setStatus(`Could not load data from the World Bank API.<br><small>${err.message}</small>`, { error: true, loading: false });
+  }
+}
+boot();
+</script>
+</body>
+</html>
